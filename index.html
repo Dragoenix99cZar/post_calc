@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust WebAssembly Scientific Calculator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #184218;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .calc-container {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            width: 440px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #184218;
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+            outline: none;
+        }
+        input:focus {
+            border-color: #0070f3;
+        }
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+        button {
+            padding: 10px 0;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.15s ease;
+        }
+        button.num { background: #f0f2f5; color: #333; }
+        button.num:hover { background: #e2e6ea; }
+
+        button.op { background: #e1ecf4; color: #0070f3; }
+        button.op:hover { background: #c6dcf0; }
+
+        button.fn { background: #fef3c7; color: #92400e; }
+        button.fn:hover { background: #fde68a; }
+
+        button.const { background: #ede9fe; color: #5b21b6; }
+        button.const:hover { background: #ddd6fe; }
+
+        button.action-ac { background: #fee2e2; color: #991b1b; }
+        button.action-ac:hover { background: #fecaca; }
+
+        button.action-del { background: #f3f4f6; color: #4b5563; }
+        button.action-del:hover { background: #e5e7eb; }
+
+        button.equals {
+            background: #10b981;
+            color: white;
+            grid-column: span 5;
+            font-size: 16px;
+            padding: 12px 0;
+            margin-top: 4px;
+        }
+        button.equals:hover { background: #059669; }
+
+        .result-box {
+            /*margin-top: 16px;*/
+            margin-bottom: 24px;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            word-break: break-all;
+            right: 10px;
+        }
+        .success { background: #e6f6ec; color: #137333; border: 1px solid #c2e7cc; }
+        .error { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
+    </style>
+</head>
+<body>
+
+<div class="calc-container">
+    <h2>Scientific Engine</h2>
+    <input type="text" id="expression" placeholder="Enter math formula..." />
+    <div id="display-output" class="result-box"></div>
+
+    <div class="keypad">
+        <!-- Row 1: Functions & Clear -->
+        <button class="fn" onclick="appendValue('sin(')">sin</button>
+        <button class="fn" onclick="appendValue('cos(')">cos</button>
+        <button class="fn" onclick="appendValue('tan(')">tan</button>
+        <button class="action-ac" onclick="clearDisplay()">AC</button>
+        <button class="action-del" onclick="backspace()">⌫</button>
+
+        <!-- Row 2: Advanced Functions & Exponent -->
+        <button class="fn" onclick="appendValue('sqrt(')">√</button>
+        <button class="fn" onclick="appendValue('ln(')">ln</button>
+        <button class="fn" onclick="appendValue('log10(')">log10</button>
+        <button class="fn" onclick="appendValue('log2(')">log2</button>
+        <button class="op" onclick="appendValue('^')">^</button>
+
+        <!-- Row 3: Conversions & Brackets -->
+        <button class="fn" onclick="appendValue('deg2rad(')">deg2rad</button>
+        <button class="fn" onclick="appendValue('rad2deg(')">rad2deg</button>
+        <button class="fn" onclick="appendValue('atan2(')">atan2</button>
+        <button class="op" onclick="appendValue('(')">(</button>
+        <button class="op" onclick="appendValue(')')">)</button>
+
+        <!-- Row 4: 7, 8, 9, /, Pi -->
+        <button class="num" onclick="appendValue('7')">7</button>
+        <button class="num" onclick="appendValue('8')">8</button>
+        <button class="num" onclick="appendValue('9')">9</button>
+        <button class="op" onclick="appendValue('/')">/</button>
+        <button class="const" onclick="appendValue('pi')">π</button>
+
+        <!-- Row 5: 4, 5, 6, *, e -->
+        <button class="num" onclick="appendValue('4')">4</button>
+        <button class="num" onclick="appendValue('5')">5</button>
+        <button class="num" onclick="appendValue('6')">6</button>
+        <button class="op" onclick="appendValue('*')">*</button>
+        <button class="const" onclick="appendValue('e')">e</button>
+
+        <!-- Row 6: 1, 2, 3, -, Tau -->
+        <button class="num" onclick="appendValue('1')">1</button>
+        <button class="num" onclick="appendValue('2')">2</button>
+        <button class="num" onclick="appendValue('3')">3</button>
+        <button class="op" onclick="appendValue('-')">-</button>
+        <button class="const" onclick="appendValue('tau')">τ</button>
+
+        <!-- Row 7: 0, ., + -->
+        <button class="num" onclick="appendValue('0')" style="grid-column: span 2;">0</button>
+        <button class="num" onclick="appendValue('.')">.</button>
+        <button class="op" onclick="appendValue('+')">+</button>
+        <button class="op" onclick="appendValue(',')">,</button>
+
+        <!-- Equals Button -->
+        <button class="equals" id="calc-btn">=</button>
+    </div>
+</div>
+
+<script type="module">
+    // Import the compiled WebAssembly loader and calculation wrapper[cite: 3]
+    import init, { calculate } from './pkg/post_calc.js';
+
+    const inputEl = document.getElementById('expression');
+
+    // Insert button text precisely at the user's current cursor index
+    window.appendValue = function(val) {
+        const start = inputEl.selectionStart;
+        const end = inputEl.selectionEnd;
+        const text = inputEl.value;
+        inputEl.value = text.substring(0, start) + val + text.substring(end);
+        inputEl.focus();
+        inputEl.setSelectionRange(start + val.length, start + val.length);
+    }
+
+    window.clearDisplay = function() {
+        inputEl.value = '';
+        document.getElementById('display-output').style.display = 'none';
+    }
+
+    window.backspace = function() {
+        const start = inputEl.selectionStart;
+        const end = inputEl.selectionEnd;
+        const text = inputEl.value;
+        if (start !== end) {
+            inputEl.value = text.substring(0, start) + text.substring(end);
+            inputEl.setSelectionRange(start, start);
+        } else if (start > 0) {
+            inputEl.value = text.substring(0, start - 1) + text.substring(start);
+            inputEl.setSelectionRange(start - 1, start - 1);
+        }
+        inputEl.focus();
+    }
+
+    async function initializeCalculator() {
+        // Initialize the WebAssembly runtime binary[cite: 3]
+        await init();
+
+        const buttonEl = document.getElementById('calc-btn');
+        const outputEl = document.getElementById('display-output');
+
+        function expEval() {
+            const expression = inputEl.value;
+            outputEl.style.display = 'block';
+
+            try {
+                // Execute calculation using your high-performance Rust engine[cite: 3]
+                const outputResult = calculate(expression);
+
+                outputEl.className = 'result-box success';
+                outputEl.innerText = `Result: ${outputResult}`;
+            } catch (errorMessage) {
+                // Capture explicit error strings thrown by Rust[cite: 3]
+                outputEl.className = 'result-box error';
+                outputEl.innerText = `Error: ${errorMessage}`;
+            }
+        }
+
+        buttonEl.addEventListener('click', expEval);
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') expEval();
+        });
+    }
+
+    initializeCalculator();
+</script>
+
+</body>
+</html>
